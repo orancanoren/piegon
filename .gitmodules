@@ -1,0 +1,3 @@
+[submodule "cryptoran"]
+	path = cryptoran
+	url = https://github.com/orancanoren/cryptoran
