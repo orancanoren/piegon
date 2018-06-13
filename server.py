@@ -15,6 +15,7 @@ class EspionageServer(EspionageConnection):
         self.serverRunning = True
         self.maxConnections = maxConnections
         self.connectionHandler = connectionHandler
+        self.printLock = threading.Lock()
 
         # set up the server socket
         self.serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -63,7 +64,8 @@ class EspionageServer(EspionageConnection):
                         raise Exception()
                     else:
                         plaintext = self.decodeReceived(payload)
-                        self.messageHandler(id, addr, plaintext)
+                        with self.printLock:
+                            self.messageHandler(id, addr, plaintext)
             except:
                 client.close()
                 print('TCP socket connection to client', id, 'is terminated')
@@ -133,4 +135,4 @@ if __name__ == '__main__':
             print('\nTerminating server')
             server.stop()
             break
-    print('main thread finishing')
+    print('main thread dying')
