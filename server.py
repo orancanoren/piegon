@@ -8,12 +8,13 @@ class EspionageServer(EspionageConnection):
     '''
 
     def __init__(self, cipher: BlockCiphers.BlockCipher, ip: str, 
-            port: int, messageHandler, maxConnections: int):
+            port: int, messageHandler: callable, connectionHandler: callable, maxConnections: int):
         self.bufferSize = 1024
         self.clients = {}
         self.nextId = 0
         self.serverRunning = True
         self.maxConnections = maxConnections
+        self.connectionHandler = connectionHandler
 
         # set up the server socket
         self.serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -27,34 +28,36 @@ class EspionageServer(EspionageConnection):
         super().__init__(cipher, ip, port, messageHandler)
 
     def listen(self):
+        # start listening for max <self.maxConnections> connections to the server socket
         self.serverSock.listen(self.maxConnections)
-        inputs = [self.serverSock]
+
         while self.serverRunning:
-            inready, outready, excready = select.select(inputs, [], [], 0.1)
-            for incoming in inready:
+            # check if there is an incoming connection to the server
+            readable, _, _ = select.select([self.serverSock], [], [], 0.1)
+            for incoming in readable:
                 if incoming == self.serverSock:
+                    # accept the connection and add the client socket to the list of client sockets
                     client, addr = self.serverSock.accept()
                     client.settimeout(120)
-                    if not incoming:
-                        raise Exception('Client Disconnected in listen()')
-            
-                self.clients[self.nextId] = client
+                    self.clients[self.nextId] = client
 
-                self.sendMessage('Thanks for connecting, your id is ' + str(self.nextId), client)
-                threading.Thread(target=self.listenToClient, 
-                    args=(client, addr, self.nextId)).start()
-                print(addr, 'connected - id:', self.nextId)
-                self.nextId += 1
-        print('stopped listening for incoming TCP connections')
+                    # send greeting message to the new client
+                    self.sendMessage('Thanks for connecting, your id is ' + str(self.nextId), client)
+                    # start a new thread listening for incoming messages from the new client
+                    threading.Thread(target=self.listenToClient, args=(client, addr, self.nextId)).start()
+                    # expose the new connection to class user
+                    self.connectionHandler(addr, self.nextId)
+                    self.nextId += 1
+        print('stopped listening for incoming TCP connections') # debug
 
     def listenToClient(self, client: socket.socket, addr: str, id: int):
-        inputs = [self.serverSock]
         while self.serverRunning:
             try:
                 if self.clients[id] == None: # another method has requested disconnection of client
                     raise Exception()
-                inready, outready, excready = select.select(inputs, [], [], 0.1)
-                for incoming in inready:
+                readable, _, _ = select.select([client], [], [], 0.1)
+
+                for _ in readable:
                     payload = client.recv(self.bufferSize)
                     if not payload:
                         raise Exception()
@@ -92,12 +95,15 @@ if __name__ == '__main__':
     # configure cipher and server
     def messageHandler(id, address, message):
         print(f'{str(address)} [id - {id}]: {message}')
+    
+    def connectionHandler(address, id):
+        print(f'{address} connected - id: {id}')
 
     port = 5005
-    cipher = BlockCiphers.AES('cbc', 123456789, 987654321)
+    cipher = BlockCiphers.AES('cbc', 12345678910, 10987654321)
     server = None
     try:
-        server = EspionageServer(cipher, '127.0.0.1', port, messageHandler, 5)
+        server = EspionageServer(cipher, '127.0.0.1', port, messageHandler, connectionHandler, 5)
     except IOError  as err:
         print('Error during server initialization:')
         print(err)
@@ -106,10 +112,12 @@ if __name__ == '__main__':
     # start listening
     print(f'listening on port {port}')
     threading.Thread(target=server.start).start()
-    print(f'You may enter a broadcast message, CTRL + C to destroy server')
+    print(f'You may enter a broadcast message.\nEnter ".exit" or KeyboardInterrupt to destroy server')
     while True:
         try:
             message = input('>>')
+            if message == '.exit':
+                raise KeyboardInterrupt
             server.broadcast(message)
         except KeyboardInterrupt:
             print('\nTerminating server')
