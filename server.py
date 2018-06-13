@@ -92,16 +92,26 @@ class EspionageServer(EspionageConnection):
     
 
 if __name__ == '__main__':
-    # configure cipher and server
+    aeskey = 12345678910
+    aesiv = 10987654321
+    ip, port = None, None
+
+    try:
+        ip = sys.argv[1]
+        port = int(sys.argv[2])
+    except:
+        print('usage: python server.py ip port')
+
+    cipher = BlockCiphers.AES('cbc', aeskey, aesiv)
+    server = None
+
     def messageHandler(id, address, message):
         print(f'{str(address)} [id - {id}]: {message}')
     
     def connectionHandler(address, id):
         print(f'{address} connected - id: {id}')
 
-    port = 5005
-    cipher = BlockCiphers.AES('cbc', 12345678910, 10987654321)
-    server = None
+    # configure cipher and server
     try:
         server = EspionageServer(cipher, '127.0.0.1', port, messageHandler, connectionHandler, 5)
     except IOError  as err:
