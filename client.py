@@ -13,6 +13,7 @@ class EspionageClient(EspionageConnection):
         self.bufferSize = 1024
         self.connectionAlive = True
         self.disconnectionHandler = disconnectionHandler
+        self.printLock = threading.Lock()
         super().__init__(cipher, serverIP, serverPort, messageHandler)
 
     def listen(self):
@@ -24,7 +25,8 @@ class EspionageClient(EspionageConnection):
                     if not payload:
                         raise Exception()
                     else:
-                        self.messageHandler(self.decodeReceived(payload))
+                        with self.printLock:
+                            self.messageHandler(self.decodeReceived(payload))
             except:
                 self.connectionAlive = False
                 self.disconnectionHandler()
