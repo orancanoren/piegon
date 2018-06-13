@@ -1,29 +1,57 @@
-from cryptoran.cryptosuite.BlockCiphers import AES
+from cryptoran import BlockCiphers
 import socket
 import pickle
+import threading
+import sys
+from EspionageConnection import EspionageConnection
 
-TCP_IP = '127.0.0.1'
-TCP_PORT = 5005
-BUFFER_SIZE = 4096
-AES_KEY = 0x91f646fdeed609aae15538d85bad73ac
-AES_IV = 0xe28b65741a4f6d4694c42bb717fd4f80
+class EspionageClient(EspionageConnection):
+    def __init__(self, cipher: BlockCiphers.BlockCipher, 
+        serverIP: str, serverPort: int, messageHandler):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect((serverIP, serverPort))
+        self.bufferSize = 1024
+        self.listenerThread = None
+        self.connectionAlive = True
+        super().__init__(cipher, serverIP, serverPort, messageHandler)
 
-cipher = AES('cbc', 0x91f646fdeed609aae15538d85bad73ac, 
-    0xe28b65741a4f6d4694c42bb717fd4f80)
+    def listen(self):
+        while self.connectionAlive:
+            try:
+                payload = self.sock.recv(self.bufferSize)
+                if not payload:
+                    self.connectionAlive = False
+                    return
+                else:
+                    self.messageHandler(self.decodeReceived(payload))
+            except OSError:
+                break
 
-def sendMessage(cipher: AES, msg, conn):
-    ciphertextBlocks = cipher.encrypt(msg)
-    serializedBlocks = pickle.dumps(ciphertextBlocks)
-    conn.send(serializedBlocks)
+    def start(self):
+        self.listenerThread = threading.Thread(target=self.listen)
+        self.listenerThread.start()
 
-def decodeReceived(cipher: AES, received):
-    ciphertextBlocks = pickle.loads(received)
-    decryptedMessage = cipher.decrypt(ciphertextBlocks)
-    return decryptedMessage
+    def stop(self):
+        self.connectionAlive = False
+        self.sock.close()
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((TCP_IP, TCP_PORT))
-sendMessage(cipher, 'hey there server!', s)
-serializedData = s.recv(BUFFER_SIZE)
-print('received:', decodeReceived(cipher, serializedData))
-s.close()
+    def send(self, message):
+        self.sendMessage(message, self.sock)
+
+    def isConnected(self):
+        return self.connectionAlive
+
+if __name__ == '__main__':
+    cipher = BlockCiphers.AES('cbc', 123456789, 987654321)
+    client = EspionageClient(cipher, '127.0.0.1', 5005, print)
+    client.start()
+    print('Input ".exit" to terminate the program')
+    while True and client.isConnected():
+        message = input('>>')
+        if message == '.exit':
+            print('Terminating connection')
+            client.stop()
+            print('Connection terminated by user')
+            break
+        client.send(message)
+    print('Terminating program')
