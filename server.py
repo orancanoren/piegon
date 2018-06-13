@@ -92,8 +92,8 @@ class EspionageServer(EspionageConnection):
     
 
 if __name__ == '__main__':
-    aeskey = 12345678910
-    aesiv = 10987654321
+    aeskey = 0xa359d14d4ba52b820daf40c5c4fa5568
+    aesiv = 0xed7ef412977a7df3af9e67307bd2214b
     ip, port = None, None
 
     try:
@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
     # configure cipher and server
     try:
-        server = EspionageServer(cipher, '127.0.0.1', port, messageHandler, connectionHandler, 5)
+        server = EspionageServer(cipher, ip, port, messageHandler, connectionHandler, 5)
     except IOError  as err:
         print('Error during server initialization:')
         print(err)
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     print(f'You may enter a broadcast message.\nEnter ".exit" or KeyboardInterrupt to destroy server')
     while True:
         try:
-            message = input('>>')
+            message = input()
             if message == '.exit':
                 raise KeyboardInterrupt
             server.broadcast(message)

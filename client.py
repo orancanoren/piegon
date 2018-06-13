@@ -44,8 +44,8 @@ class EspionageClient(EspionageConnection):
         return self.connectionAlive
 
 if __name__ == '__main__':
-    aeskey = 12345678910
-    aesiv = 10987654321
+    aeskey = 0xa359d14d4ba52b820daf40c5c4fa5568
+    aesiv = 0xed7ef412977a7df3af9e67307bd2214b
     ip, port = None, None
 
     cipher = BlockCiphers.AES('cbc', aeskey, aesiv)
@@ -61,13 +61,16 @@ if __name__ == '__main__':
     def disconnectionHandler():
         print('disconnected from server!')
         os._exit(1)
+    
+    def connectionHandler(message: str):
+        print(f'Server: {message}')
 
     client = EspionageClient(cipher, ip, port, print, disconnectionHandler)
     client.start()
     print('Connected to server\nInput ".exit" to terminate the program')
     
     while client.isConnected():
-        message = input('>>')
+        message = input()
         if message == '.exit':
             userTermination = True
             print('Terminating connection')
