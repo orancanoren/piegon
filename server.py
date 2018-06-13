@@ -104,7 +104,7 @@ if __name__ == '__main__':
     except:
         print('usage: python server.py ip port')
 
-    cipher = BlockCiphers.AES('cbc', aeskey, aesiv)
+    cipher = BlockCiphers.AES('ecb', aeskey, aesiv)
     server = None
 
     def messageHandler(id, address, message):

@@ -50,7 +50,7 @@ if __name__ == '__main__':
     aesiv = 0xed7ef412977a7df3af9e67307bd2214b
     ip, port = None, None
 
-    cipher = BlockCiphers.AES('cbc', aeskey, aesiv)
+    cipher = BlockCiphers.AES('ecb', aeskey, aesiv)
     userTermination = False
 
     try:
