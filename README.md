@@ -23,13 +23,12 @@ To integrate into your own Python 3 module, you may import server and client cla
 
 ```python
 from server import EspionageServer
-from cryptoran import BlockCipher
+from cryptoran import BlockCiphers # pip install cryptoran
 
-cipher = BlockCipher.AES('cbc', 1234567891011, 546372828374)
+cipher = BlockCiphers.AES('cbc', 1234567891011, 546372828374)
 server = EspionageServer(cipher, '192.168.1.5', 5000, print,
     lambda addr, id: print(f'{address} connected - id: {id}'))
-server.start()
-# Server listening on port 5000
+server.start() # Server listening on port 5000
 ```
 
 ## Important
