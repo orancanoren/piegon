@@ -20,16 +20,15 @@ class EspionageClient(EspionageConnection):
             try:
                 payload = self.sock.recv(self.bufferSize)
                 if not payload:
-                    self.connectionAlive = False
-                    return
+                    raise Exception()
                 else:
                     self.messageHandler(self.decodeReceived(payload))
-            except OSError:
-                break
+            except:
+                print('Disconnected from server')
+                self.connectionAlive = False
 
     def start(self):
-        self.listenerThread = threading.Thread(target=self.listen)
-        self.listenerThread.start()
+        threading.Thread(target=self.listen).start()
 
     def stop(self):
         self.connectionAlive = False
@@ -46,7 +45,7 @@ if __name__ == '__main__':
     client = EspionageClient(cipher, '127.0.0.1', 5005, print)
     client.start()
     print('Input ".exit" to terminate the program')
-    while True and client.isConnected():
+    while client.isConnected():
         message = input('>>')
         if message == '.exit':
             print('Terminating connection')
@@ -54,4 +53,5 @@ if __name__ == '__main__':
             print('Connection terminated by user')
             break
         client.send(message)
+    
     print('Terminating program')

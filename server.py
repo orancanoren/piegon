@@ -1,61 +1,72 @@
 from cryptoran import BlockCiphers
 from EspionageConnection import EspionageConnection
-import pickle
-import socket
-import threading
-import sys
-import os
-from collections import namedtuple
-
+import socket, select, sys, threading
 
 class EspionageServer(EspionageConnection):
-    def __init__(self, cipher: BlockCiphers.BlockCipher, ip: str, port: int, messageHandler):
-        self.clients = {}
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if not self.sock:
-            raise IOError('Could not create the server socket')
-        self.nextId = 0
+    '''
+    Multithreaded TCP socket server. All comms are encrypted.
+    '''
+
+    def __init__(self, cipher: BlockCiphers.BlockCipher, ip: str, 
+            port: int, messageHandler, maxConnections: int):
         self.bufferSize = 1024
+        self.clients = {}
+        self.nextId = 0
         self.serverRunning = True
+        self.maxConnections = maxConnections
+
+        # set up the server socket
+        self.serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if not self.serverSock:
+            raise IOError('Could not create the server socket')
         try:
-            self.sock.bind((ip, port))
+            self.serverSock.bind((ip, port))
         except socket.error as err:
             raise IOError(f'Address binding failed. Error:\n{err}')
 
         super().__init__(cipher, ip, port, messageHandler)
 
-    def listen(self, numClients: int):
-        self.sock.listen(numClients)
+    def listen(self):
+        self.serverSock.listen(self.maxConnections)
+        inputs = [self.serverSock]
         while self.serverRunning:
-            client, addr = self.sock.accept()
-            client.settimeout(120) # 120 second timeout
+            inready, outready, excready = select.select(inputs, [], [], 0.1)
+            for incoming in inready:
+                if incoming == self.serverSock:
+                    client, addr = self.serverSock.accept()
+                    client.settimeout(120)
+                    if not incoming:
+                        raise Exception('Client Disconnected in listen()')
             
-            self.clients[self.nextId] = client
+                self.clients[self.nextId] = client
 
-            self.sendMessage('Thanks for connecting, your id is ' + str(self.nextId), client)
-            threading.Thread(target=self.listenToClient, 
-                args=(client, addr, self.nextId)).start()
-            print(addr, 'connected - id:', self.nextId)
-            self.nextId += 1
-        os._exit(1)
+                self.sendMessage('Thanks for connecting, your id is ' + str(self.nextId), client)
+                threading.Thread(target=self.listenToClient, 
+                    args=(client, addr, self.nextId)).start()
+                print(addr, 'connected - id:', self.nextId)
+                self.nextId += 1
+        print('stopped listening for incoming TCP connections')
 
     def listenToClient(self, client: socket.socket, addr: str, id: int):
+        inputs = [self.serverSock]
         while self.serverRunning:
             try:
-                if self.clients[id] == None:
+                if self.clients[id] == None: # another method has requested disconnection of client
                     raise Exception()
-                payload = client.recv(self.bufferSize)
-                if payload:
-                    plaintext = self.decodeReceived(payload)
-                    self.messageHandler(f'{str(addr)} [id - {id}]: {plaintext}')
-                else:
-                    self.messageHandler(f'{addr} disconnected!')
-                    raise Exception()
+                inready, outready, excready = select.select(inputs, [], [], 0.1)
+                for incoming in inready:
+                    payload = client.recv(self.bufferSize)
+                    if not payload:
+                        raise Exception()
+                    else:
+                        plaintext = self.decodeReceived(payload)
+                        self.messageHandler(id, addr, plaintext)
             except:
                 client.close()
                 print('TCP socket connection to client', id, 'is terminated')
                 del self.clients[id]
                 return
+        print(f'stopped listening client {id}')
     
     def send(self, message: str, clientId: int):
         self.sendMessage(message, self.clients[clientId])
@@ -64,10 +75,10 @@ class EspionageServer(EspionageConnection):
         self.serverRunning = False
         for clientId in self.clients.keys():
             self.clients[clientId] = None
-        return
+            print('set to none:', self.clients[clientId])
 
-    def start(self, maxAllowedConnections: int):
-        self.listen(maxAllowedConnections)
+    def start(self):
+        self.listen()
 
     def broadcast(self, message: str):
         for client in self.clients.values():
@@ -79,11 +90,14 @@ class EspionageServer(EspionageConnection):
 
 if __name__ == '__main__':
     # configure cipher and server
+    def messageHandler(id, address, message):
+        print(f'{str(address)} [id - {id}]: {message}')
+
     port = 5005
     cipher = BlockCiphers.AES('cbc', 123456789, 987654321)
     server = None
     try:
-        server = EspionageServer(cipher, '127.0.0.1', port, print)
+        server = EspionageServer(cipher, '127.0.0.1', port, messageHandler, 5)
     except IOError  as err:
         print('Error during server initialization:')
         print(err)
@@ -91,17 +105,14 @@ if __name__ == '__main__':
 
     # start listening
     print(f'listening on port {port}')
-    threading.Thread(target=server.start, args=((5, )) ).start()
-    print(f'You may enter a broadcast message, enter ".exit" to destroy server')
+    threading.Thread(target=server.start).start()
+    print(f'You may enter a broadcast message, CTRL + C to destroy server')
     while True:
         try:
             message = input('>>')
-            if message == '.exit':
-                print('Terminating server')
-                server.stop()
-                print('terminated')
-                break
             server.broadcast(message)
-        except:
-            print('terminated with exception')
-    print('bye!')
+        except KeyboardInterrupt:
+            print('\nTerminating server')
+            server.stop()
+            break
+    print('main thread finishing')
