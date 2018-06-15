@@ -1,14 +1,15 @@
-from cryptoran import BlockCiphers
+from cryptoran import BlockCiphers, SecretKeySharing
 from EspionageConnection import EspionageConnection
 import socket, select, sys, threading
 
 class EspionageServer(EspionageConnection):
     '''
-    Multithreaded TCP socket server. All comms are encrypted.
+    Multithreaded TCP socket server. Provides encrypted communication
     '''
 
-    def __init__(self, cipher: BlockCiphers.BlockCipher, ip: str, 
-            port: int, messageHandler: callable, connectionHandler: callable, maxConnections: int):
+    def __init__(self, cipher, ip: str, port: int, messageHandler: callable, 
+            connectionHandler: callable, maxConnections: int, cipherIV: int):
+        # Network
         self.bufferSize = 1024
         self.clients = {}
         self.nextId = 0
@@ -17,7 +18,13 @@ class EspionageServer(EspionageConnection):
         self.connectionHandler = connectionHandler
         self.printLock = threading.Lock()
 
-        # set up the server socket
+        # Encryption
+        self.dh = SecretKeySharing.DiffieHellman(primeLength=256)
+        self.dhParams = self.dh.generateSecret()
+        self.BlockCipher = cipher
+        self.iv = cipherIV
+
+        # Configuration
         self.serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if not self.serverSock:
             raise IOError('Could not create the server socket')
@@ -26,7 +33,7 @@ class EspionageServer(EspionageConnection):
         except socket.error as err:
             raise IOError(f'Address binding failed. Error:\n{err}')
 
-        super().__init__(cipher, ip, port, messageHandler)
+        super().__init__(ip, port, messageHandler)
 
     def listen(self):
         # start listening for max <self.maxConnections> connections to the server socket
@@ -37,37 +44,50 @@ class EspionageServer(EspionageConnection):
             readable, _, _ = select.select([self.serverSock], [], [], 0.1)
             for incoming in readable:
                 if incoming == self.serverSock:
-                    # accept the connection and add the client socket to the list of client sockets
+                    # accept the connection
                     client, addr = self.serverSock.accept()
                     client.settimeout(120)
-                    self.clients[self.nextId] = client
 
-                    # send greeting message to the new client
-                    self.sendMessage('Thanks for connecting, your id is ' + str(self.nextId), client)
+                    # negotiate on key using Diffie Hellman protocol
+                    # 1 - send dh params to client
+                    self.sendUnencrypted(self.dhParams, client)
+
+                    # 2 - listen for Diffie-Hellman input
+                    dhRaw = client.recv(512)
+                    dhInput = self.decodeUnencrypted(dhRaw)
+                    sharedKey = self.dh.generateSharedKey(dhInput)
+                    cipher = self.BlockCipher('cbc', sharedKey, self.iv)
+
+                    clientPair = (client, cipher)
+                    self.clients[self.nextId] = clientPair
+                    
                     # start a new thread listening for incoming messages from the new client
-                    threading.Thread(target=self.listenToClient, args=(client, addr, self.nextId)).start()
+                    threading.Thread(target=self.listenToClient, args=(addr, self.nextId, clientPair)).start()
+                    
                     # expose the new connection to class user
                     self.connectionHandler(addr, self.nextId)
                     self.nextId += 1
         print('stopped listening for incoming TCP connections') # debug
 
-    def listenToClient(self, client: socket.socket, addr: str, id: int):
+    def listenToClient(self, addr: str, id: int, clientPair):
+        self.sendMessage('Thanks for connecting, your id is ' + str(self.nextId), clientPair)
+
         while self.serverRunning:
             try:
                 if self.clients[id] == None: # another method has requested disconnection of client
                     raise Exception()
-                readable, _, _ = select.select([client], [], [], 0.1)
+                readable, _, _ = select.select([clientPair[0]], [], [], 0.1)
 
                 for _ in readable:
-                    payload = client.recv(self.bufferSize)
+                    payload = clientPair[0].recv(self.bufferSize)
                     if not payload:
                         raise Exception()
                     else:
-                        plaintext = self.decodeReceived(payload)
+                        plaintext = self.decodeReceived(payload, clientPair[1])
                         with self.printLock:
                             self.messageHandler(id, addr, plaintext)
             except:
-                client.close()
+                clientPair[0].close()
                 print('TCP socket connection to client', id, 'is terminated')
                 del self.clients[id]
                 return
@@ -86,15 +106,14 @@ class EspionageServer(EspionageConnection):
         self.listen()
 
     def broadcast(self, message: str):
-        for client in self.clients.values():
+        for clientPair in self.clients.values():
             try:
-                self.sendMessage(message, client)
+                self.sendMessage(message, clientPair)
             except:
                 continue
     
 
 if __name__ == '__main__':
-    aeskey = 0xa359d14d4ba52b820daf40c5c4fa5568
     aesiv = 0xed7ef412977a7df3af9e67307bd2214b
     ip, port = None, None
 
@@ -104,7 +123,6 @@ if __name__ == '__main__':
     except:
         print('usage: python server.py ip port')
 
-    cipher = BlockCiphers.AES('ecb', aeskey, aesiv)
     server = None
 
     def messageHandler(id, address, message):
@@ -115,7 +133,7 @@ if __name__ == '__main__':
 
     # configure cipher and server
     try:
-        server = EspionageServer(cipher, ip, port, messageHandler, connectionHandler, 5)
+        server = EspionageServer(BlockCiphers.AES, ip, port, messageHandler, connectionHandler, 5, aesiv)
     except IOError  as err:
         print('Error during server initialization:')
         print(err)

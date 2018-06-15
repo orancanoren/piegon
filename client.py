@@ -1,4 +1,4 @@
-from cryptoran import BlockCiphers
+from cryptoran import BlockCiphers, SecretKeySharing
 import socket
 import select
 import threading
@@ -6,17 +6,34 @@ import sys, os
 from EspionageConnection import EspionageConnection
 
 class EspionageClient(EspionageConnection):
-    def __init__(self, cipher: BlockCiphers.BlockCipher, 
-        serverIP: str, serverPort: int, messageHandler, disconnectionHandler: callable):
+    def __init__(self, cipher: BlockCiphers, serverIP: str, 
+            serverPort: int, messageHandler, disconnectionHandler: callable, cipherIV):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((serverIP, serverPort))
         self.bufferSize = 1024
         self.connectionAlive = True
         self.disconnectionHandler = disconnectionHandler
         self.printLock = threading.Lock()
-        super().__init__(cipher, serverIP, serverPort, messageHandler)
+
+        self.dh = None
+        self.cipherClass = cipher
+        self.cipher = None
+        self.iv = cipherIV
+
+        super().__init__(serverIP, serverPort, messageHandler)
 
     def listen(self):
+        # 1 - set common secret key with server
+        dhRaw = self.sock.recv(1024)
+        dhInfo = self.decodeUnencrypted(dhRaw)
+        self.dh = SecretKeySharing.DiffieHellman(dhInfo[0], dhInfo[1])
+        _, _, expSecret = self.dh.generateSecret()
+
+        self.sendUnencrypted(expSecret, self.sock)
+
+        cipherKey = self.dh.generateSharedKey(dhInfo[2])
+        self.cipher = self.cipherClass('cbc', cipherKey, self.iv)
+
         while self.connectionAlive:
             try:
                 readable, _, _ = select.select([self.sock], [], [], 0.1)
@@ -26,7 +43,7 @@ class EspionageClient(EspionageConnection):
                         raise Exception()
                     else:
                         with self.printLock:
-                            self.messageHandler(self.decodeReceived(payload))
+                            self.messageHandler(self.decodeReceived(payload, self.cipher))
             except:
                 self.connectionAlive = False
                 self.disconnectionHandler()
@@ -40,17 +57,14 @@ class EspionageClient(EspionageConnection):
         self.sock.close()
 
     def send(self, message):
-        self.sendMessage(message, self.sock)
+        self.sendMessage(message, (self.sock, self.cipher))
 
     def isConnected(self):
         return self.connectionAlive
 
 if __name__ == '__main__':
-    aeskey = 0xa359d14d4ba52b820daf40c5c4fa5568
     aesiv = 0xed7ef412977a7df3af9e67307bd2214b
     ip, port = None, None
-
-    cipher = BlockCiphers.AES('ecb', aeskey, aesiv)
     userTermination = False
 
     try:
@@ -67,7 +81,7 @@ if __name__ == '__main__':
     def connectionHandler(message: str):
         print(f'Server: {message}')
 
-    client = EspionageClient(cipher, ip, port, print, disconnectionHandler)
+    client = EspionageClient(BlockCiphers.AES, ip, port, print, disconnectionHandler, aesiv)
     client.start()
     print('Connected to server\nInput ".exit" to terminate the program')
     

@@ -4,22 +4,27 @@ import socket
 from abc import abstractclassmethod, ABC
 
 class EspionageConnection(ABC):
-    def __init__(self, cipher: BlockCiphers.BlockCipher,
-            ip, port, messageHandler):
+    def __init__(self,ip, port, messageHandler):
         self.ip = ip
         self.port = port
         self.messageHandler = messageHandler
-        self.cipher = cipher
         super().__init__()
 
-    def sendMessage(self, msg: str, client: socket.socket):
-        ciphertextBlocks = self.cipher.encrypt(msg)
-        serializedBlocks = pickle.dumps(ciphertextBlocks)
-        client.send(serializedBlocks)
+    def sendUnencrypted(self, data, sock: socket.socket):
+        rawData = pickle.dumps(data)
+        sock.send(rawData)
 
-    def decodeReceived(self, received):
+    def decodeUnencrypted(self, data: bytes):
+        return pickle.loads(data)
+
+    def sendMessage(self, msg: str, clientPair):
+        ciphertextBlocks = clientPair[1].encrypt(msg)
+        serializedBlocks = pickle.dumps(ciphertextBlocks)
+        clientPair[0].send(serializedBlocks)
+
+    def decodeReceived(self, received: bytes, cipher: BlockCiphers):
         ciphertextBlocks = pickle.loads(received)
-        decryptedMessage = self.cipher.decrypt(ciphertextBlocks)
+        decryptedMessage = cipher.decrypt(ciphertextBlocks)
         return decryptedMessage
     
     @abstractclassmethod
