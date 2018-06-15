@@ -5,6 +5,12 @@ Encrypted server-client communication using cryptoran.
 
 Espionage provides an interface for encrypted server-client communication. It is being built with the purpose of simplifying such interactions. It is a multi-threaded server, not an async one thus Espionage is not intended for scalable large networks.
 
+### Current implementation features
+
+* Hosts negotiate on a shared key using Diffie-Hellman protocol
+* Further communication is encrypted by AES-128 in CBC mode with the key supplied from DH
+* Communication runs over TCP
+
 ## Usage
 
 __Server__  
@@ -33,4 +39,4 @@ server.start() # Server listening on port 5000
 
 ## Important
 
-Espionage relies on cryptoran, which is not cryptographically secure. Both cryptoran and Espionage are primarily developed for the satisfying nerdy desires of the author. 
+Espionage relies on cryptoran, which I am building for educational purposes only. You should __not__ rely neither on Espionage nor cryptoran for ensuring security in your system.
