@@ -85,7 +85,7 @@ if __name__ == '__main__':
     def connectionHandler(message: str):
         print(f'Server: {message}')
 
-    client = EspionageClient(BlockCiphers.AES, ip, port, print, disconnectionHandler, aesiv)
+    client = EspionageClient(ip, port, print, disconnectionHandler, aesiv, BlockCiphers.AES)
     client.start()
     print('Connected to server\nInput ".exit" to terminate the program')
     

@@ -19,7 +19,7 @@ class EspionageConnection(ABC):
 
     def sendMessage(self, msg: str, clientPair):
         if not clientPair[1]:
-            sendUnencrypted(msg, clientPair[0])
+            self.sendUnencrypted(msg, clientPair[0])
             return
 
         ciphertextBlocks = clientPair[1].encrypt(msg)
