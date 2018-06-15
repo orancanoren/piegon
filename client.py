@@ -6,8 +6,8 @@ import sys, os
 from EspionageConnection import EspionageConnection
 
 class EspionageClient(EspionageConnection):
-    def __init__(self, cipher: BlockCiphers, serverIP: str, 
-            serverPort: int, messageHandler, disconnectionHandler: callable, cipherIV):
+    def __init__(self, serverIP: str, serverPort: int, messageHandler, 
+            disconnectionHandler: callable, cipherIV = None, cipher = None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((serverIP, serverPort))
         self.bufferSize = 1024
@@ -15,24 +15,28 @@ class EspionageClient(EspionageConnection):
         self.disconnectionHandler = disconnectionHandler
         self.printLock = threading.Lock()
 
-        self.dh = None
-        self.cipherClass = cipher
+        # encryption
         self.cipher = None
-        self.iv = cipherIV
+        if cipher:
+            self.dh = None
+            self.cipherClass = cipher
+            self.cipher = None
+            self.iv = cipherIV
 
         super().__init__(serverIP, serverPort, messageHandler)
 
     def listen(self):
-        # 1 - set common secret key with server
-        dhRaw = self.sock.recv(1024)
-        dhInfo = self.decodeUnencrypted(dhRaw)
-        self.dh = SecretKeySharing.DiffieHellman(dhInfo[0], dhInfo[1])
-        _, _, expSecret = self.dh.generateSecret()
+        if self.cipher:
+            # 1 - set common secret key with server
+            dhRaw = self.sock.recv(1024)
+            dhInfo = self.decodeUnencrypted(dhRaw)
+            self.dh = SecretKeySharing.DiffieHellman(dhInfo[0], dhInfo[1])
+            _, _, expSecret = self.dh.generateSecret()
 
-        self.sendUnencrypted(expSecret, self.sock)
+            self.sendUnencrypted(expSecret, self.sock)
 
-        cipherKey = self.dh.generateSharedKey(dhInfo[2])
-        self.cipher = self.cipherClass('cbc', cipherKey, self.iv)
+            cipherKey = self.dh.generateSharedKey(dhInfo[2])
+            self.cipher = self.cipherClass('cbc', cipherKey, self.iv)
 
         while self.connectionAlive:
             try:

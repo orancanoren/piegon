@@ -18,14 +18,19 @@ class EspionageConnection(ABC):
         return pickle.loads(data)
 
     def sendMessage(self, msg: str, clientPair):
+        if not clientPair[1]:
+            sendUnencrypted(msg, clientPair[0])
+            return
+
         ciphertextBlocks = clientPair[1].encrypt(msg)
         serializedBlocks = pickle.dumps(ciphertextBlocks)
         clientPair[0].send(serializedBlocks)
 
     def decodeReceived(self, received: bytes, cipher: BlockCiphers):
-        ciphertextBlocks = pickle.loads(received)
-        decryptedMessage = cipher.decrypt(ciphertextBlocks)
-        return decryptedMessage
+        message = pickle.loads(received)
+        if cipher:
+            message = cipher.decrypt(message)
+        return message
     
     @abstractclassmethod
     def listen(self):

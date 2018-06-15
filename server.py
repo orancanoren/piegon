@@ -7,8 +7,8 @@ class EspionageServer(EspionageConnection):
     Multithreaded TCP socket server. Provides encrypted communication
     '''
 
-    def __init__(self, cipher, ip: str, port: int, messageHandler: callable, 
-            connectionHandler: callable, maxConnections: int, cipherIV: int):
+    def __init__(self, ip: str, port: int, messageHandler: callable, 
+            connectionHandler: callable, maxConnections: int, cipherIV = None, cipher = None):
         # Network
         self.bufferSize = 1024
         self.clients = {}
@@ -19,10 +19,12 @@ class EspionageServer(EspionageConnection):
         self.printLock = threading.Lock()
 
         # Encryption
-        self.dh = SecretKeySharing.DiffieHellman(primeLength=256)
-        self.dhParams = self.dh.generateSecret()
-        self.BlockCipher = cipher
-        self.iv = cipherIV
+        self.cipher = None
+        if cipher:
+            self.dh = SecretKeySharing.DiffieHellman(primeLength=256)
+            self.dhParams = self.dh.generateSecret()
+            self.BlockCipher = cipher
+            self.iv = cipherIV
 
         # Configuration
         self.serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -48,15 +50,17 @@ class EspionageServer(EspionageConnection):
                     client, addr = self.serverSock.accept()
                     client.settimeout(120)
 
-                    # negotiate on key using Diffie Hellman protocol
-                    # 1 - send dh params to client
-                    self.sendUnencrypted(self.dhParams, client)
+                    cipher = None
+                    if self.cipher:
+                        # negotiate on key using Diffie Hellman protocol
+                        # 1 - send dh params to client
+                        self.sendUnencrypted(self.dhParams, client)
 
-                    # 2 - listen for Diffie-Hellman input
-                    dhRaw = client.recv(512)
-                    dhInput = self.decodeUnencrypted(dhRaw)
-                    sharedKey = self.dh.generateSharedKey(dhInput)
-                    cipher = self.BlockCipher('cbc', sharedKey, self.iv)
+                        # 2 - listen for Diffie-Hellman input
+                        dhRaw = client.recv(512)
+                        dhInput = self.decodeUnencrypted(dhRaw)
+                        sharedKey = self.dh.generateSharedKey(dhInput)
+                        cipher = self.BlockCipher('cbc', sharedKey, self.iv)
 
                     clientPair = (client, cipher)
                     self.clients[self.nextId] = clientPair
@@ -116,10 +120,13 @@ class EspionageServer(EspionageConnection):
 if __name__ == '__main__':
     aesiv = 0xed7ef412977a7df3af9e67307bd2214b
     ip, port = None, None
+    unsafe = False
 
     try:
         ip = sys.argv[1]
         port = int(sys.argv[2])
+        if len(sys.argv) > 3 and sys.argv[3] == '--unsafe':
+            unsafe = True
     except:
         print('usage: python server.py ip port')
 
@@ -133,7 +140,10 @@ if __name__ == '__main__':
 
     # configure cipher and server
     try:
-        server = EspionageServer(BlockCiphers.AES, ip, port, messageHandler, connectionHandler, 5, aesiv)
+        if unsafe:
+            server = EspionageServer(ip, port, messageHandler, connectionHandler, 5)
+        else:
+            server = EspionageServer(ip, port, messageHandler, connectionHandler, 5, aesiv, BlockCiphers.AES)
     except IOError  as err:
         print('Error during server initialization:')
         print(err)
