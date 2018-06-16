@@ -25,6 +25,7 @@ class EspionageServer(EspionageConnection):
             self.dhParams = self.dh.generateSecret()
             self.BlockCipher = cipher
             self.iv = cipherIV
+            self.cipher = cipher
 
         # Configuration
         self.serverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -104,7 +105,6 @@ class EspionageServer(EspionageConnection):
         self.serverRunning = False
         for clientId in self.clients.keys():
             self.clients[clientId] = None
-            print('set to none:', self.clients[clientId])
 
     def start(self):
         self.listen()
@@ -128,7 +128,9 @@ if __name__ == '__main__':
         if len(sys.argv) > 3 and sys.argv[3] == '--unsafe':
             unsafe = True
     except:
-        print('usage: python server.py ip port')
+        print('usage: python server.py ip port [--unsafe]')
+        print(sys.argv)
+        sys.exit()
 
     server = None
 

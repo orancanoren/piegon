@@ -16,22 +16,26 @@ class EspionageClient(EspionageConnection):
         self.printLock = threading.Lock()
 
         # encryption
+        self.cipherClass = None
         self.cipher = None
         if cipher:
             self.dh = None
             self.cipherClass = cipher
-            self.cipher = None
             self.iv = cipherIV
+            self.cipher = None
 
         super().__init__(serverIP, serverPort, messageHandler)
 
     def listen(self):
-        if self.cipher:
+        if self.cipherClass:
             # 1 - set common secret key with server
             dhRaw = self.sock.recv(1024)
             dhInfo = self.decodeUnencrypted(dhRaw)
-            self.dh = SecretKeySharing.DiffieHellman(dhInfo[0], dhInfo[1])
-            _, _, expSecret = self.dh.generateSecret()
+            if type(dhInfo) == list:
+                self.dh = SecretKeySharing.DiffieHellman(dhInfo[0], dhInfo[1])
+                _, _, expSecret = self.dh.generateSecret()
+            else:
+                print('Server is probably not using encryption')
 
             self.sendUnencrypted(expSecret, self.sock)
 
@@ -70,22 +74,29 @@ if __name__ == '__main__':
     aesiv = 0xed7ef412977a7df3af9e67307bd2214b
     ip, port = None, None
     userTermination = False
+    unsafe = False
 
     try:
         ip = sys.argv[1]
         port = int(sys.argv[2])
+        if len(sys.argv) > 3 and sys.argv[3] == '--unsafe':
+            unsafe = True
     except:
-        print('usage: python client.py ip port')
-        os._exit(1)
+        print('usage: python client.py ip port [--unsafe]')
+        sys.exit()
     
     def disconnectionHandler():
         print('disconnected from server!')
-        os._exit(1)
+        sys.exit()
     
     def connectionHandler(message: str):
         print(f'Server: {message}')
 
-    client = EspionageClient(ip, port, print, disconnectionHandler, aesiv, BlockCiphers.AES)
+    client = None
+    if not unsafe:
+        client = EspionageClient(ip, port, print, disconnectionHandler, aesiv, BlockCiphers.AES)
+    else:
+        client = EspionageClient(ip, port, print, disconnectionHandler)
     client.start()
     print('Connected to server\nInput ".exit" to terminate the program')
     
