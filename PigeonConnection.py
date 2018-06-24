@@ -1,9 +1,9 @@
 import pickle
-from cryptoran import BlockCiphers
+from cryptoran import blockcipher
 import socket
 from abc import abstractclassmethod, ABC
 
-class EspionageConnection(ABC):
+class PigeonConnection(ABC):
     def __init__(self,ip, port, messageHandler):
         self.ip = ip
         self.port = port
@@ -26,7 +26,7 @@ class EspionageConnection(ABC):
         serializedBlocks = pickle.dumps(ciphertextBlocks)
         clientPair[0].send(serializedBlocks)
 
-    def decodeReceived(self, received: bytes, cipher: BlockCiphers):
+    def decodeReceived(self, received: bytes, cipher: blockcipher.BlockCipher):
         message = pickle.loads(received)
         if cipher:
             message = cipher.decrypt(message)
