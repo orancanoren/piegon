@@ -1,8 +1,8 @@
 from cryptoran import BlockCiphers, SecretKeySharing
-from EspionageConnection import EspionageConnection
+from PigeonConnection import PigeonConnection
 import socket, select, sys, threading
 
-class EspionageServer(EspionageConnection):
+class PigeonServer(PigeonConnection):
     '''
     Multithreaded TCP socket server. Provides encrypted communication
     '''
@@ -143,9 +143,9 @@ if __name__ == '__main__':
     # configure cipher and server
     try:
         if unsafe:
-            server = EspionageServer(ip, port, messageHandler, connectionHandler, 5)
+            server = PigeonServer(ip, port, messageHandler, connectionHandler, 5)
         else:
-            server = EspionageServer(ip, port, messageHandler, connectionHandler, 5, aesiv, BlockCiphers.AES)
+            server = PigeonServer(ip, port, messageHandler, connectionHandler, 5, aesiv, BlockCiphers.AES)
     except IOError  as err:
         print('Error during server initialization:')
         print(err)
