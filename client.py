@@ -3,9 +3,9 @@ import socket
 import select
 import threading
 import sys, os
-from EspionageConnection import EspionageConnection
+from PigeonConnection import PigeonConnection
 
-class EspionageClient(EspionageConnection):
+class PigeonClient(PigeonConnection):
     def __init__(self, serverIP: str, serverPort: int, messageHandler, 
             disconnectionHandler: callable, cipherIV = None, cipher = None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -94,9 +94,9 @@ if __name__ == '__main__':
 
     client = None
     if not unsafe:
-        client = EspionageClient(ip, port, print, disconnectionHandler, aesiv, BlockCiphers.AES)
+        client = PigeonClient(ip, port, print, disconnectionHandler, aesiv, BlockCiphers.AES)
     else:
-        client = EspionageClient(ip, port, print, disconnectionHandler)
+        client = PigeonClient(ip, port, print, disconnectionHandler)
     client.start()
     print('Connected to server\nInput ".exit" to terminate the program')
     
