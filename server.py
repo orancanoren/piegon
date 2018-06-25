@@ -1,4 +1,4 @@
-from cryptoran import BlockCiphers, SecretKeySharing
+from cryptoran import blockcipher, keyexchange
 from PigeonConnection import PigeonConnection
 import socket, select, sys, threading
 
@@ -21,7 +21,7 @@ class PigeonServer(PigeonConnection):
         # Encryption
         self.cipher = None
         if cipher:
-            self.dh = SecretKeySharing.DiffieHellman(primeLength=256)
+            self.dh = keyexchange.DiffieHellman(primeLength=256)
             self.dhParams = self.dh.generateSecret()
             self.BlockCipher = cipher
             self.iv = cipherIV
@@ -145,7 +145,7 @@ if __name__ == '__main__':
         if unsafe:
             server = PigeonServer(ip, port, messageHandler, connectionHandler, 5)
         else:
-            server = PigeonServer(ip, port, messageHandler, connectionHandler, 5, aesiv, BlockCiphers.AES)
+            server = PigeonServer(ip, port, messageHandler, connectionHandler, 5, aesiv, blockcipher.AES)
     except IOError  as err:
         print('Error during server initialization:')
         print(err)

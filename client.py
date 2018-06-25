@@ -1,4 +1,4 @@
-from cryptoran import BlockCiphers, SecretKeySharing
+from cryptoran import blockcipher, keyexchange
 import socket
 import select
 import threading
@@ -32,7 +32,7 @@ class PigeonClient(PigeonConnection):
             dhRaw = self.sock.recv(1024)
             dhInfo = self.decodeUnencrypted(dhRaw)
             if type(dhInfo) == list:
-                self.dh = SecretKeySharing.DiffieHellman(dhInfo[0], dhInfo[1])
+                self.dh = keyexchange.DiffieHellman(dhInfo[0], dhInfo[1])
                 _, _, expSecret = self.dh.generateSecret()
             else:
                 print('Server is probably not using encryption')
@@ -94,7 +94,7 @@ if __name__ == '__main__':
 
     client = None
     if not unsafe:
-        client = PigeonClient(ip, port, print, disconnectionHandler, aesiv, BlockCiphers.AES)
+        client = PigeonClient(ip, port, print, disconnectionHandler, aesiv, blockcipher.AES)
     else:
         client = PigeonClient(ip, port, print, disconnectionHandler)
     client.start()
