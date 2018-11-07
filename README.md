@@ -3,7 +3,7 @@ Encrypted server-client communication using cryptoran.
 
 ## So what is pigeon?
 
-Pigeon provides an interface for encrypted server-client communication. It is being built with the purpose of simplifying such interactions. It is a multi-threaded server, not an async one thus Espionage is not intended for scalable large networks.
+Pigeon provides an interface for encrypted server-client communication. It is being built with the purpose of simplifying such interactions. It is a multi-threaded server, not an async one.
 
 ### Current implementation features
 
